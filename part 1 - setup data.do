@@ -10,7 +10,8 @@ save  "../temp/FAOSTAT_countrycodes", replace
 
 
 import delimited using "../dataRaw/Production_Crops_E_All_Data.csv", clear
-keep if item=="Wheat" | item=="Maize"
+replace item="Rice" if item=="Rice, paddy"
+keep if item=="Wheat" | item=="Maize" | item=="Rice"
 replace element="area" if element=="Area harvested"
 replace element="yield" if element=="Yield"
 replace element="production" if element=="Production"
