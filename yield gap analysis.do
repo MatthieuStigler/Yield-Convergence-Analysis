@@ -1,16 +1,28 @@
 foreach com in maize wheat {
 use "../temp/commodity-level_regression_data", clear
 keep if commodity=="`com'"
+drop if ln_gdp_per_capita==.
+drop if yield==.
 
+bysort country: egen first_year=min(year)
+bysort country: egen last_year=max(year)
+tab first_year
+tab last_year
+keep if first_year==1961
+keep if last_year>=2009
+drop if year>2009
+tab country
+
+* Make sure no country is missing substantial amounts of data in the middle
 bysort country: gen cntryN=_N
 tab cntryN
-drop if cntryN<44
+drop if cntryN<45
 
 capture drop yield_hat yield_hat_lo yield_hat_hi
 gen yield_hat=.
 gen yield_hat_lo=.
 gen yield_hat_hi=.
-forvalues y=1962/2010 {
+forvalues y=1962/2009 {
 capture drop gdp_spline*
 mkspline gdp_spline = ln_gdp_per_capita, cubic nknots(3) displayknots
 matrix knot_mat=r(knots)

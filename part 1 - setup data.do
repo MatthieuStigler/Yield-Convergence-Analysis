@@ -1,3 +1,8 @@
+import delimited using "../dataRaw/data_merged_ALL_Cntry_Commod_Year_mAd.csv", clear
+
+
+
+
 clear
 version 14.2
 set more off
@@ -58,7 +63,6 @@ bysort country commodity: egen avg_vop=mean(dai3__vop_prod)
 summ distortion* prod* area* gdp_per_capita pre tmp
 
 
-drop if distortion==.
 summ distortion* prod* area* gdp_per_capita pre tmp
 
 
