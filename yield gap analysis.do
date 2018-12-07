@@ -1,4 +1,4 @@
-foreach com in Maize Wheat Rice {
+foreach com in Maize Wheat Rice Soybeans {
 *local com Rice
 use "../temp/fullFAO_regression_data", clear
 keep if commodity=="`com'"
@@ -55,11 +55,11 @@ replace yield_hat_hi= yhat + 1.96*yhat_se
 drop yhat yhat_se
 }
 
-sort year ln_gdp_per_capita
+sort year `gdp'
 *twoway (line yield_hat `gdp') , by(year) scheme(538w)
 twoway (line yield_hat `gdp') (scatter ln_yield `gdp', msymbol(Oh) mcolor(%35) ), ///
 		by(year, legend(off) note("")) scheme(538w) ///
-		xtitle("Log GDP per Capita") ytitle("Log Yield")
+		xtitle("Log GDP per Capita") ytitle("Log `com' Yield")
 graph export "..\figures\yield_gdp_`com'.png", replace
 
 preserve
