@@ -205,3 +205,58 @@ twoway (line yield_hat_mae year) , by(country, yrescale legend(off) note("")) sc
 graph export "..\figures\yield_pred_mae.png", replace
 
 
+*--------------------------------------------------------------
+* Graph the yield gap over time
+*--------------------------------------------------------------
+use "..\temp\yield_pred_rmse", clear
+ren yield_hat_rmse yield_hat
+
+forvalues y=1961/2014 {
+qui summ yield_hat if year==`y', detail
+replace yield_hat=r(p5) if yield_hat<r(p5) & yield_hat!=. & year==`y'
+replace yield_hat=r(p95) if yield_hat>r(p95) & yield_hat!=. & year==`y'
+}
+
+twoway kdensity yield_hat if year==1965 || kdensity yield_hat if year==1975 || kdensity yield_hat if year==1985 || ///
+	kdensity yield_hat if year==1995 || kdensity yield_hat if year==2005 || kdensity yield_hat if year==2014, ///
+	legend(label(1 "1965" ) label(2 "1975") label(3 "1985") label(4 "1995") label(5 "2005") label(6 "2014")) scheme(538w) ///
+	xtitle("Maize Yield") ytitle("Density")
+graph export "..\figures\yield_density_maize.png", replace
+	
+gen gap95_05=.
+gen gap90_10=.
+gen gap95_50=.
+gen gap90_50=.
+gen relgap95_05=.
+gen relgap90_10=.
+gen relgap95_50=.
+gen relgap90_50=.
+forvalues y=1961/2014 {
+summ yield_hat if year==`y', detail
+replace gap95_05=r(p95) - r(p5) if year==`y'
+replace gap90_10=r(p90) - r(p10) if year==`y'
+replace gap95_50=r(p95) - r(p50) if year==`y'
+replace gap90_50=r(p90) - r(p50) if year==`y'
+
+replace relgap95_05=(r(p95) - r(p5))/r(p95) if year==`y'
+replace relgap90_10=(r(p90) - r(p10))/r(p90) if year==`y'
+replace relgap95_50=(r(p95) - r(p50))/r(p95) if year==`y'
+replace relgap90_50=(r(p90) - r(p50))/r(p90) if year==`y'
+} 	
+
+collapse gap* relgap*, by(year)
+
+sort year
+line gap95_05 gap90_10 year, scheme(538w) legend(label(1 "95-5 Gap") label(2 "90-10 Gap")) ///
+	title("Maize Yield Gap with Lowest")
+graph export "..\figures\yield_gap_low_maize.png", replace
+line gap95_50 gap90_50 year, scheme(538w) legend(label(1 "95-50 Gap") label(2 "90-50 Gap")) ///
+	title("Maize Yield Gap with Median")
+graph export "..\figures\yield_gap_mid_maize.png", replace
+
+line relgap95_05 relgap90_10 year, scheme(538w) legend(label(1 "95-5 Gap") label(2 "90-10 Gap")) ///
+	title("Maize Relative Yield Gap with Lowest")
+graph export "..\figures\yield_relgap_low_maize.png", replace
+line relgap95_50 relgap90_50 year, scheme(538w) legend(label(1 "95-50 Gap") label(2 "90-50 Gap")) ///
+	title("Maize Relative Yield Gap with Median")
+graph export "..\figures\yield_relgap_mid_maize.png", replace
