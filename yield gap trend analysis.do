@@ -15,11 +15,12 @@
 
 *ssc install loocv
 
+local com Wheat
 *------------------------------------------------------------------------
 * Set sample used for regressions
 *------------------------------------------------------------------------
 use "../temp/fullFAO_regression_data", clear
-keep if commodity=="Maize"
+keep if commodity=="`com'"
 bysort country: egen first_year=min(year)
 bysort country: egen last_year=max(year)
 tab first_year
@@ -37,7 +38,7 @@ egen country_grp=group(country), label
 * so this uses July temperatures in USA. 
 *gen tmp_lag3month=cru__ave2_tmp_w_finarea_l_3
 
-save "../temp/trend_regression_data", replace
+save "../temp/trend_regression_data_`com'", replace
 
 
 local controls 
@@ -45,7 +46,7 @@ local controls
 *------------------------------------------------------------------------
 * Cross Validation to determine optimal spline knots
 *------------------------------------------------------------------------
-use "../temp/trend_regression_data", clear
+use "../temp/trend_regression_data_`com'", clear
 summ country_grp
 local max_country=r(max)
 
@@ -53,10 +54,10 @@ local max_country=r(max)
 tempname memhold
 tempfile results
 postfile `memhold' country_grp countrycode knot1 knot2 ///
-	rmse mae pseudoR2 using "..\temp\cv_results", replace
+	rmse mae pseudoR2 using "..\temp\cv_results_`com'", replace
 
 forvalues j=1/`max_country' {
-use "../temp/trend_regression_data", clear
+use "../temp/trend_regression_data_`com'", clear
 keep if country_grp==`j'
 
 summ country_grp
@@ -119,14 +120,14 @@ tempfile  yield_pred_rmse
 tempfile  yield_pred_mae
  
 
-use "..\temp\cv_results", clear
+use "..\temp\cv_results_`com'", clear
 summ country_grp
 local max_country=r(max)
 
 
 forvalues j=1/`max_country' {
 * Find optimal knots for country j according to rmse and mae
-use "..\temp\cv_results", clear
+use "..\temp\cv_results_`com'", clear
 keep if country_grp==`j'
 sort rmse
 mean knot1 knot2 in 1
@@ -141,7 +142,7 @@ local knot2_mae=_b[knot2]
 foreach g in rmse mae {
 
 * Load data for regression
-use "../temp/trend_regression_data", clear
+use "../temp/trend_regression_data_`com'", clear
 keep if country_grp==`j'
 
 if `knot1_`g''>0 & `knot2_`g''>0 {
@@ -188,28 +189,42 @@ save `yield_pred_`g'', replace
 } // end of country loop
 
 use `yield_pred_rmse', clear
-save "..\temp\yield_pred_rmse", replace
+save "..\temp\yield_pred_rmse_`com'", replace
 use `yield_pred_mae', clear
-save "..\temp\yield_pred_mae", replace
+save "..\temp\yield_pred_mae_`com'", replace
 
-use "..\temp\yield_pred_rmse", clear
+use "..\temp\yield_pred_rmse_`com'", clear
 sort country year
 *twoway (line yield_hat_rmse year) (scatter yield year, msymbol(Oh) mcolor(gs8)), by(country, yrescale legend(off) note("")) scheme(538w) 
 twoway (line yield_hat_rmse year) , by(country, yrescale legend(off) note("")) scheme(538w) 
-graph export "..\figures\yield_pred_rmse.png", replace
+graph export "..\figures\yield_pred_rmse_`com'.png", replace
 
-use "..\temp\yield_pred_mae", clear
+use "..\temp\yield_pred_mae_`com'", clear
 sort country year
 *twoway (line yield_hat_rmse year) (scatter yield year, msymbol(Oh) mcolor(gs8)), by(country, yrescale legend(off) note("")) scheme(538w) 
 twoway (line yield_hat_mae year) , by(country, yrescale legend(off) note("")) scheme(538w) 
-graph export "..\figures\yield_pred_mae.png", replace
+graph export "..\figures\yield_pred_mae_`com'.png", replace
 
 
 *--------------------------------------------------------------
 * Graph the yield gap over time
 *--------------------------------------------------------------
-use "..\temp\yield_pred_rmse", clear
+local com Wheat
+use "..\temp\yield_pred_rmse_`com'", clear
 ren yield_hat_rmse yield_hat
+gen lnyield_hat=ln(yield_hat)
+
+/*
+*ssc install dpplot
+dpplot yield_hat if year==1961, dist(lognormal)
+dpplot yield_hat if year==2010, dist(lognormal)
+dpplot yield_hat if year==2010, dist(lognormal) plot(kdensity yield_hat if year==2010)
+*/
+
+summ yield_hat, detail
+summ lnyield_hat
+display exp(invnormal(0.05)*r(sd) + r(mean))
+display exp(invnormal(0.95)*r(sd) + r(mean))
 
 forvalues y=1961/2014 {
 qui summ yield_hat if year==`y', detail
@@ -221,7 +236,7 @@ twoway kdensity yield_hat if year==1965 || kdensity yield_hat if year==1975 || k
 	kdensity yield_hat if year==1995 || kdensity yield_hat if year==2005 || kdensity yield_hat if year==2014, ///
 	legend(label(1 "1965" ) label(2 "1975") label(3 "1985") label(4 "1995") label(5 "2005") label(6 "2014")) scheme(538w) ///
 	xtitle("Maize Yield") ytitle("Density")
-graph export "..\figures\yield_density_maize.png", replace
+graph export "..\figures\yield_density_`com'.png", replace
 	
 gen gap95_05=.
 gen gap90_10=.
@@ -231,6 +246,15 @@ gen relgap95_05=.
 gen relgap90_10=.
 gen relgap95_50=.
 gen relgap90_50=.
+
+gen gap95_05_logn=.
+gen gap90_10_logn=.
+gen gap95_50_logn=.
+gen gap90_50_logn=.
+gen relgap95_05_logn=.
+gen relgap90_10_logn=.
+gen relgap95_50_logn=.
+gen relgap90_50_logn=.
 forvalues y=1961/2014 {
 summ yield_hat if year==`y', detail
 replace gap95_05=r(p95) - r(p5) if year==`y'
@@ -242,21 +266,48 @@ replace relgap95_05=(r(p95) - r(p5))/r(p95) if year==`y'
 replace relgap90_10=(r(p90) - r(p10))/r(p90) if year==`y'
 replace relgap95_50=(r(p95) - r(p50))/r(p95) if year==`y'
 replace relgap90_50=(r(p90) - r(p50))/r(p90) if year==`y'
+
+/*
+summ lnyield_hat if year==`y', detail
+replace gap95_05_logn=exp(invnormal(0.95)*r(sd) + r(mean)) - exp(invnormal(0.05)*r(sd) + r(mean)) if year==`y'
+replace gap90_10_logn=exp(invnormal(0.90)*r(sd) + r(mean)) - exp(invnormal(0.10)*r(sd) + r(mean)) if year==`y'
+replace gap95_50_logn=exp(invnormal(0.95)*r(sd) + r(mean)) - exp(invnormal(0.50)*r(sd) + r(mean)) if year==`y'
+replace gap90_50_logn=exp(invnormal(0.90)*r(sd) + r(mean)) - exp(invnormal(0.50)*r(sd) + r(mean)) if year==`y'
+
+replace relgap95_05_logn=(exp(invnormal(0.95)*r(sd) + r(mean)) - exp(invnormal(0.05)*r(sd) + r(mean)))/exp(invnormal(0.95)*r(sd) + r(mean)) if year==`y'
+replace relgap90_10_logn=(exp(invnormal(0.90)*r(sd) + r(mean)) - exp(invnormal(0.10)*r(sd) + r(mean)))/exp(invnormal(0.90)*r(sd) + r(mean)) if year==`y'
+replace relgap95_50_logn=(exp(invnormal(0.95)*r(sd) + r(mean)) - exp(invnormal(0.50)*r(sd) + r(mean)))/exp(invnormal(0.95)*r(sd) + r(mean)) if year==`y'
+replace relgap90_50_logn=(exp(invnormal(0.90)*r(sd) + r(mean)) - exp(invnormal(0.50)*r(sd) + r(mean)))/exp(invnormal(0.90)*r(sd) + r(mean)) if year==`y'
+*/
 } 	
 
 collapse gap* relgap*, by(year)
 
 sort year
 line gap95_05 gap90_10 year, scheme(538w) legend(label(1 "95-5 Gap") label(2 "90-10 Gap")) ///
-	title("Maize Yield Gap with Lowest")
-graph export "..\figures\yield_gap_low_maize.png", replace
+	title("`com' Yield Gap with Lowest")
+graph export "..\figures\yield_gap_low_`com'.png", replace
 line gap95_50 gap90_50 year, scheme(538w) legend(label(1 "95-50 Gap") label(2 "90-50 Gap")) ///
-	title("Maize Yield Gap with Median")
-graph export "..\figures\yield_gap_mid_maize.png", replace
+	title("`com' Yield Gap with Median")
+graph export "..\figures\yield_gap_mid_`com'.png", replace
 
 line relgap95_05 relgap90_10 year, scheme(538w) legend(label(1 "95-5 Gap") label(2 "90-10 Gap")) ///
-	title("Maize Relative Yield Gap with Lowest")
-graph export "..\figures\yield_relgap_low_maize.png", replace
+	title("`com' Relative Yield Gap with Lowest")
+graph export "..\figures\yield_relgap_low_`com'.png", replace
 line relgap95_50 relgap90_50 year, scheme(538w) legend(label(1 "95-50 Gap") label(2 "90-50 Gap")) ///
-	title("Maize Relative Yield Gap with Median")
-graph export "..\figures\yield_relgap_mid_maize.png", replace
+	title("`com' Relative Yield Gap with Median")
+graph export "..\figures\yield_relgap_mid_`com'.png", replace
+
+
+
+
+/*
+
+line relgap95_05_logn relgap90_10_logn year, scheme(538w) legend(label(1 "95-5 Gap") label(2 "90-10 Gap")) ///
+	title("`com' Relative Yield Gap with Lowest")
+*graph export "..\figures\yield_relgap_low_`com'.png", replace
+line relgap95_50_logn relgap90_50_logn year, scheme(538w) legend(label(1 "95-50 Gap") label(2 "90-50 Gap")) ///
+	title("`com' Relative Yield Gap with Median")
+*graph export "..\figures\yield_relgap_mid_`com'.png", replace
+
+*/
