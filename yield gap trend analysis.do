@@ -15,7 +15,8 @@
 
 *ssc install loocv
 
-local com Maize
+foreach com in Maize Wheat Rice {
+*local com Maize
 *------------------------------------------------------------------------
 * Set sample used for regressions
 *------------------------------------------------------------------------
@@ -77,9 +78,10 @@ save "..\temp\yield_pred_`com'", replace
 
 use "..\temp\yield_pred_`com'", clear
 sort country year
-twoway (line yield_hat year) (scatter yield year, msymbol(Oh) mcolor(gs8)), by(country, yrescale legend(off) note("")) scheme(538w) 
-twoway (line yield_hat year) , by(country, yrescale legend(off) note("")) scheme(538w) 
+twoway (line yield_hat year, lwidth(medthick)) (scatter yield year, msymbol(Oh) mcolor(gs8%60)), by(country, yrescale legend(off) note("")) scheme(538w) 
 graph export "..\figures\yield_pred_`com'.png", replace
+*twoway (line yield_hat year) , by(country, yrescale legend(off) note("")) scheme(538w) 
+
 
 
 
@@ -87,7 +89,6 @@ graph export "..\figures\yield_pred_`com'.png", replace
 *--------------------------------------------------------------
 * Graph the yield gap over time
 *--------------------------------------------------------------
-local com Maize
 use "..\temp\yield_pred_`com'", clear
 gen lnyield_hat=ln(yield_hat)
 
@@ -133,3 +134,4 @@ line yield95 yield90 yield50 yield10 yield05 year, scheme(538w) legend(label(1 "
 graph export "..\figures\yield_percentiles_`com'.png", replace width(2000)
 
 
+} // end of loop over commodities
