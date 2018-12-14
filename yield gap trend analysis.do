@@ -15,7 +15,7 @@
 
 *ssc install loocv
 
-local com Wheat
+local com Rice
 *------------------------------------------------------------------------
 * Set sample used for regressions
 *------------------------------------------------------------------------
@@ -209,97 +209,58 @@ graph export "..\figures\yield_pred_mae_`com'.png", replace
 *--------------------------------------------------------------
 * Graph the yield gap over time
 *--------------------------------------------------------------
-local com Wheat
+local com Rice
 use "..\temp\yield_pred_rmse_`com'", clear
 ren yield_hat_rmse yield_hat
 gen lnyield_hat=ln(yield_hat)
 
 /*
-*ssc install dpplot
-dpplot yield_hat if year==1961, dist(lognormal)
-dpplot yield_hat if year==2010, dist(lognormal)
-dpplot yield_hat if year==2010, dist(lognormal) plot(kdensity yield_hat if year==2010)
-*/
-
-summ yield_hat, detail
-summ lnyield_hat
-display exp(invnormal(0.05)*r(sd) + r(mean))
-display exp(invnormal(0.95)*r(sd) + r(mean))
-
 forvalues y=1961/2014 {
 qui summ yield_hat if year==`y', detail
 replace yield_hat=r(p5) if yield_hat<r(p5) & yield_hat!=. & year==`y'
 replace yield_hat=r(p95) if yield_hat>r(p95) & yield_hat!=. & year==`y'
 }
-
-twoway kdensity yield_hat if year==1965 || kdensity yield_hat if year==1975 || kdensity yield_hat if year==1985 || ///
-	kdensity yield_hat if year==1995 || kdensity yield_hat if year==2005 || kdensity yield_hat if year==2014, ///
-	legend(label(1 "1965" ) label(2 "1975") label(3 "1985") label(4 "1995") label(5 "2005") label(6 "2014")) scheme(538w) ///
-	xtitle("Maize Yield") ytitle("Density")
-graph export "..\figures\yield_density_`com'.png", replace
-	
-gen gap95_05=.
-gen gap90_10=.
-gen gap95_50=.
-gen gap90_50=.
-gen relgap95_05=.
-gen relgap90_10=.
-gen relgap95_50=.
-gen relgap90_50=.
-
-gen gap95_05_logn=.
-gen gap90_10_logn=.
-gen gap95_50_logn=.
-gen gap90_50_logn=.
-gen relgap95_05_logn=.
-gen relgap90_10_logn=.
-gen relgap95_50_logn=.
-gen relgap90_50_logn=.
-forvalues y=1961/2014 {
-summ yield_hat if year==`y', detail
-replace gap95_05=r(p95) - r(p5) if year==`y'
-replace gap90_10=r(p90) - r(p10) if year==`y'
-replace gap95_50=r(p95) - r(p50) if year==`y'
-replace gap90_50=r(p90) - r(p50) if year==`y'
-
-replace relgap95_05=(r(p95) - r(p5))/r(p95) if year==`y'
-replace relgap90_10=(r(p90) - r(p10))/r(p90) if year==`y'
-replace relgap95_50=(r(p95) - r(p50))/r(p95) if year==`y'
-replace relgap90_50=(r(p90) - r(p50))/r(p90) if year==`y'
-
-/*
-summ lnyield_hat if year==`y', detail
-replace gap95_05_logn=exp(invnormal(0.95)*r(sd) + r(mean)) - exp(invnormal(0.05)*r(sd) + r(mean)) if year==`y'
-replace gap90_10_logn=exp(invnormal(0.90)*r(sd) + r(mean)) - exp(invnormal(0.10)*r(sd) + r(mean)) if year==`y'
-replace gap95_50_logn=exp(invnormal(0.95)*r(sd) + r(mean)) - exp(invnormal(0.50)*r(sd) + r(mean)) if year==`y'
-replace gap90_50_logn=exp(invnormal(0.90)*r(sd) + r(mean)) - exp(invnormal(0.50)*r(sd) + r(mean)) if year==`y'
-
-replace relgap95_05_logn=(exp(invnormal(0.95)*r(sd) + r(mean)) - exp(invnormal(0.05)*r(sd) + r(mean)))/exp(invnormal(0.95)*r(sd) + r(mean)) if year==`y'
-replace relgap90_10_logn=(exp(invnormal(0.90)*r(sd) + r(mean)) - exp(invnormal(0.10)*r(sd) + r(mean)))/exp(invnormal(0.90)*r(sd) + r(mean)) if year==`y'
-replace relgap95_50_logn=(exp(invnormal(0.95)*r(sd) + r(mean)) - exp(invnormal(0.50)*r(sd) + r(mean)))/exp(invnormal(0.95)*r(sd) + r(mean)) if year==`y'
-replace relgap90_50_logn=(exp(invnormal(0.90)*r(sd) + r(mean)) - exp(invnormal(0.50)*r(sd) + r(mean)))/exp(invnormal(0.90)*r(sd) + r(mean)) if year==`y'
 */
-} 	
 
-collapse gap* relgap*, by(year)
+twoway kdensity lnyield_hat if year==1965 || kdensity lnyield_hat if year==1975 || kdensity lnyield_hat if year==1985 || ///
+	kdensity lnyield_hat if year==1995 || kdensity lnyield_hat if year==2005 || kdensity lnyield_hat if year==2014, ///
+	legend(label(1 "1965" ) label(2 "1975") label(3 "1985") label(4 "1995") label(5 "2005") label(6 "2014")) scheme(538w) ///
+	xtitle("Log `com' Yield") ytitle("Density")
+graph export "..\figures\yield_density_`com'.png", replace width(2000)
+
+
+collapse(p5) yield05=yield_hat (p10) yield10=yield_hat (p50) yield50=yield_hat (p90) yield90=yield_hat (p95) yield95=yield_hat, by(year)
+gen gap95_05=yield95 - yield05 
+gen gap90_10=yield90 - yield10 
+gen gap95_50=yield95 - yield50 
+gen gap90_50=yield90 - yield50 
+
+gen relgap95_05=(yield95 - yield05)/yield95 
+gen relgap90_10=(yield90 - yield10)/yield90 
+gen relgap95_50=(yield95 - yield50)/yield95 
+gen relgap90_50=(yield90 - yield50)/yield90 
 
 sort year
 line gap95_05 gap90_10 year, scheme(538w) legend(label(1 "95-5 Gap") label(2 "90-10 Gap")) ///
 	title("`com' Yield Gap with Lowest")
-graph export "..\figures\yield_gap_low_`com'.png", replace
+graph export "..\figures\yield_gap_low_`com'.png", replace width(2000)
 line gap95_50 gap90_50 year, scheme(538w) legend(label(1 "95-50 Gap") label(2 "90-50 Gap")) ///
 	title("`com' Yield Gap with Median")
-graph export "..\figures\yield_gap_mid_`com'.png", replace
+graph export "..\figures\yield_gap_mid_`com'.png", replace width(2000)
 
 line relgap95_05 relgap90_10 year, scheme(538w) legend(label(1 "95-5 Gap") label(2 "90-10 Gap")) ///
 	title("`com' Relative Yield Gap with Lowest")
-graph export "..\figures\yield_relgap_low_`com'.png", replace
+graph export "..\figures\yield_relgap_low_`com'.png", replace width(2000)
 line relgap95_50 relgap90_50 year, scheme(538w) legend(label(1 "95-50 Gap") label(2 "90-50 Gap")) ///
 	title("`com' Relative Yield Gap with Median")
 graph export "..\figures\yield_relgap_mid_`com'.png", replace
 
 
 
+line yield95 yield90 yield50 yield10 yield05 year, scheme(538w) legend(label(1 "95th percentile") label(2 "90th percentile") ///
+	label(3 "50th percentile")  label(4 "10th percentile")  label(5 "5th percentile"))  ///
+	title("`com' Yield Percentiles Over Time") xtitle("Year")
+graph export "..\figures\yield_percentiles_`com'.png", replace width(2000)
 
 /*
 
