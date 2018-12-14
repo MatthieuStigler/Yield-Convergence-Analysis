@@ -15,7 +15,7 @@
 
 *ssc install loocv
 
-local com Rice
+local com Maize
 *------------------------------------------------------------------------
 * Set sample used for regressions
 *------------------------------------------------------------------------
@@ -42,185 +42,55 @@ save "../temp/trend_regression_data_`com'", replace
 
 
 local controls 
-
 *------------------------------------------------------------------------
-* Cross Validation to determine optimal spline knots
+* Predictions with natural cubic spline knot trend
 *------------------------------------------------------------------------
-use "../temp/trend_regression_data_`com'", clear
-summ country_grp
-local max_country=r(max)
-
-* Setup file for saving CV results
-tempname memhold
-tempfile results
-postfile `memhold' country_grp countrycode knot1 knot2 ///
-	rmse mae pseudoR2 using "..\temp\cv_results_`com'", replace
-
-forvalues j=1/`max_country' {
-use "../temp/trend_regression_data_`com'", clear
-keep if country_grp==`j'
-
-summ country_grp
-local my_country_grp=r(mean)
-summ countrycode
-local my_countrycode=r(mean)	
-	
-* Linear splines with 2 knots
-local knot_spacing=10
-summ year
-local minyear=r(min)+`knot_spacing'
-local maxyear=r(max)-`knot_spacing'
-local maxyearM1=`maxyear'-`knot_spacing'
-forvalues knot1=`minyear'/`maxyearM1' { 
-	local minj=`knot1'+`knot_spacing'
-forvalues knot2=`minj'/`maxyear' { 
-
-	display "Knot 1 = `knot1', Knot 2 = `knot2'"
-
-	capture drop year1 year2 year3
-	mkspline year1 `knot1' year2 `knot2' year3 = year
-
-	qui loocv reg yield year1 year2 year3 `controls'
-	post `memhold' (`my_country_grp') (`my_countrycode') (`knot1') (`knot2') (r(rmse)) (r(mae)) (r(r2)) 
-
-}
-}
-
-* Linear splines with 1 knot
-forvalues knot1=`minyear'/`maxyear' { 
-	display "Knot 1 = `knot1'"
-	local knot2=0
-
-	capture drop year1 year2
-	mkspline year1 `knot1' year2 = year
-
-	qui loocv reg yield year1 year2 `controls'
-	post `memhold' (`my_country_grp') (`my_countrycode') (`knot1') (`knot2') (r(rmse)) (r(mae)) (r(r2)) 
-
-}
-
-* No knots
-local knot1=0
-local knot2=0
-display "No knots"
-qui loocv reg yield year `controls'
-post `memhold' (`my_country_grp') (`my_countrycode') (`knot1') (`knot2') (r(rmse)) (r(mae)) (r(r2))
-
-}
-postclose `memhold'
-
-
-
-
-
-*------------------------------------------------------------------------
-* Predictions with optimal spline knots
-*------------------------------------------------------------------------
-tempfile  yield_pred_rmse
-tempfile  yield_pred_mae
+tempfile  yield_pred
  
-
-use "..\temp\cv_results_`com'", clear
+use "../temp/trend_regression_data_`com'", clear
 summ country_grp
 local max_country=r(max)
 
-
 forvalues j=1/`max_country' {
-* Find optimal knots for country j according to rmse and mae
-use "..\temp\cv_results_`com'", clear
-keep if country_grp==`j'
-sort rmse
-mean knot1 knot2 in 1
-local knot1_rmse=_b[knot1]
-local knot2_rmse=_b[knot2]
-sort mae
-mean knot1 knot2 in 1
-local knot1_mae=_b[knot1]
-local knot2_mae=_b[knot2]
-
-* Regression with optimal spline knots according to minimum RMSE
-foreach g in rmse mae {
-
 * Load data for regression
 use "../temp/trend_regression_data_`com'", clear
 keep if country_grp==`j'
 
-if `knot1_`g''>0 & `knot2_`g''>0 {
-capture drop year1 year2 year3
-mkspline year1 `knot1_`g'' year2 `knot2_`g'' year3 = year
+capture drop year_spline
+mkspline year_spline=year, cubic nknots(5)
 
-reg yield year1 year2 year3 `controls' 
-est sto yield_reg_`j'_`g'
-test year1=year2
-gen knots2_test1=r(p)
-test year1=year3
-gen knots2_test2=r(p)
-test year2=year3
-gen knots2_test3=r(p)
-}
+reg yield year_spline* `controls' 
+predict yield_hat
 
-if `knot1_`g''>0 & `knot2_`g''==0 {
-capture drop year1 year2
-mkspline year1 `knot1_`g'' year2 = year
-reg yield year1 year2 `controls' 
-est sto yield_reg_`j'_`g'
-test year1=year2
-gen knots1_test=r(p)
-}
-
-if `knot1_`g''==0 & `knot2_`g''==0 {
-reg yield year `controls'
-est sto yield_reg_`j'_`g'
-gen knots0_test=.
-}
-
-est restore yield_reg_`j'_`g'
-predict yield_hat_`g'
-gen knot1=`knot1_`g''
-gen knot2=`knot2_`g''
-est drop yield_reg_`j'_`g'
 
 *save the data and append together across countries
-keep country_grp country year yield yield_hat_`g' knot1 knot2 knots*
-capture append using `yield_pred_`g''
-save `yield_pred_`g'', replace
+keep country_grp country year yield yield_hat
+capture append using `yield_pred'
+save `yield_pred', replace
 
-} // end of loop foreach g in rmse mae
+
 } // end of country loop
 
-use `yield_pred_rmse', clear
-save "..\temp\yield_pred_rmse_`com'", replace
-use `yield_pred_mae', clear
-save "..\temp\yield_pred_mae_`com'", replace
+use `yield_pred', clear
+save "..\temp\yield_pred_`com'", replace
 
-use "..\temp\yield_pred_rmse_`com'", clear
-sort country year
-*twoway (line yield_hat_rmse year) (scatter yield year, msymbol(Oh) mcolor(gs8)), by(country, yrescale legend(off) note("")) scheme(538w) 
-twoway (line yield_hat_rmse year) , by(country, yrescale legend(off) note("")) scheme(538w) 
-graph export "..\figures\yield_pred_rmse_`com'.png", replace
 
-use "..\temp\yield_pred_mae_`com'", clear
+use "..\temp\yield_pred_`com'", clear
 sort country year
-*twoway (line yield_hat_rmse year) (scatter yield year, msymbol(Oh) mcolor(gs8)), by(country, yrescale legend(off) note("")) scheme(538w) 
-twoway (line yield_hat_mae year) , by(country, yrescale legend(off) note("")) scheme(538w) 
-graph export "..\figures\yield_pred_mae_`com'.png", replace
+twoway (line yield_hat year) (scatter yield year, msymbol(Oh) mcolor(gs8)), by(country, yrescale legend(off) note("")) scheme(538w) 
+twoway (line yield_hat year) , by(country, yrescale legend(off) note("")) scheme(538w) 
+graph export "..\figures\yield_pred_`com'.png", replace
+
+
 
 
 *--------------------------------------------------------------
 * Graph the yield gap over time
 *--------------------------------------------------------------
-local com Rice
-use "..\temp\yield_pred_rmse_`com'", clear
-ren yield_hat_rmse yield_hat
+local com Maize
+use "..\temp\yield_pred_`com'", clear
 gen lnyield_hat=ln(yield_hat)
 
-/*
-forvalues y=1961/2014 {
-qui summ yield_hat if year==`y', detail
-replace yield_hat=r(p5) if yield_hat<r(p5) & yield_hat!=. & year==`y'
-replace yield_hat=r(p95) if yield_hat>r(p95) & yield_hat!=. & year==`y'
-}
-*/
 
 twoway kdensity lnyield_hat if year==1965 || kdensity lnyield_hat if year==1975 || kdensity lnyield_hat if year==1985 || ///
 	kdensity lnyield_hat if year==1995 || kdensity lnyield_hat if year==2005 || kdensity lnyield_hat if year==2014, ///
@@ -262,13 +132,4 @@ line yield95 yield90 yield50 yield10 yield05 year, scheme(538w) legend(label(1 "
 	title("`com' Yield Percentiles Over Time") xtitle("Year")
 graph export "..\figures\yield_percentiles_`com'.png", replace width(2000)
 
-/*
 
-line relgap95_05_logn relgap90_10_logn year, scheme(538w) legend(label(1 "95-5 Gap") label(2 "90-10 Gap")) ///
-	title("`com' Relative Yield Gap with Lowest")
-*graph export "..\figures\yield_relgap_low_`com'.png", replace
-line relgap95_50_logn relgap90_50_logn year, scheme(538w) legend(label(1 "95-50 Gap") label(2 "90-50 Gap")) ///
-	title("`com' Relative Yield Gap with Median")
-*graph export "..\figures\yield_relgap_mid_`com'.png", replace
-
-*/
