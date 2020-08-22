@@ -1,0 +1,50 @@
+---
+title: "Data from Acemoglu 2019"
+author: "Matthieu"
+date: "8/22/2020"
+output:
+  html_document:
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "../..")
+```
+
+# Data from Acemoglu 2019 JPE
+
+Download steps (done on August 22): 
+
+1. https://www.journals.uchicago.edu/doi/10.1086/700936
+2. Supplemental Material
+3. Download in `~/dataRaw/acemoglu_2019_JPE`
+4. Uncompress
+
+## Check democracy variables
+
+Read data and get labels:
+
+```{r pressure, message=FALSE}
+library(haven)
+library(tidyverse)
+library(labelled)
+library(knitr)
+
+moglu_dat <- haven::read_dta("dataRaw/acemoglu_2019_JPE/2014340data/replication_files_ddcg/DDCGdata_final.dta")
+# moglu_dat <- haven::read_dta("../../dataRaw/acemoglu_2019_JPE/2014340data/replication_files_ddcg/DDCGdata_final.dta")
+```
+
+
+Check variables:
+
+```{r}
+moglu_dat %>% 
+  select(country_name, year, starts_with("dem")) %>% 
+  labelled::var_label() %>% 
+  map(~if_else(is.null(.), "No desc", .)) %>%
+  as_tibble() %>% 
+  gather(key = variable, value = description) %>% 
+  knitr::kable()
+```
+
