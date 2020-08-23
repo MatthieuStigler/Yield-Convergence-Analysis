@@ -12,7 +12,7 @@ library(tidyverse)
 #'## Read data
 ################################
 
-dat_all <- read_csv("dataAnalysis/data_merged_ALL_Cntry_Commod_Year_outerJoin_mAd.csv", guess_max = 5000)
+dat_all <- read_csv("dataRaw/data_from_AFRI_AERC/data_merged_ALL_Cntry_Commod_Year_outerJoin_mAd.csv", guess_max = 5000)
 yld_smooth <- read_csv("temp/yield_pred_3crops.csv")
 
 ################################

@@ -1,10 +1,10 @@
 ********************************************************************************************
 * This was the old data that had limited countries
-*import delimited using "../dataAnalysis/data_merged_ALL_Cntry_Commod_Year_mAd.csv", clear
+*import delimited using "../dataRaw/data_from_AFRI_AERC/data_merged_ALL_Cntry_Commod_Year_mAd.csv", clear
 *destring fao* dai* cru*, replace ignore("NaN" "NA")
 ********************************************************************************************
 
-import delimited using "../dataAnalysis/data_merged_ALL_Cntry_Commod_Year_outerJoin_mAd.csv", clear
+import delimited using "../dataAnalysis/data_merged/data_from_AFRI_AERC/data_merged_ALL_Cntry_Commod_Year_outerJoin_mAd.csv", clear
 destring fao* dai* cru*, replace ignore("NaN" "NA")
 ***************** Notes on the weather data *******************************
 * Spatial aggregation was done by 3 different weighting methods
