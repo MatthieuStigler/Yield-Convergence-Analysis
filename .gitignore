@@ -1,5 +1,5 @@
 .Rproj.user
-*.Rproj
+#*.Rproj actually nice to commit
 .Rhistory
 .RData
 .Ruserdata
