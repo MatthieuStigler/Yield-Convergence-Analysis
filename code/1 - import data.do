@@ -26,16 +26,12 @@ replace commodity="Wheat" if commodity=="wheat"
 replace commodity="Rice" if commodity=="rice"
 
 
-ren fao3__yield yield
-ren fao3__area area
-ren fao3__production production
-
-drop if yield==. 
+drop if fao3__yield==. 
 
 save "../temp/revisedMatthieu_regression_data", replace
 
 
-import delimited using "../dataAnalysis/data_merged_ALL_Cntry_Year_mAd.csv", clear
+import delimited using "../dataRaw/data_from_AFRI_AERC/data_merged_ALL_Cntry_Year_mAd.csv", clear
 destring fao* dai* fug* incr* pol* wdi*, replace ignore("NaN" "NA")
 drop incr*
 drop pol*

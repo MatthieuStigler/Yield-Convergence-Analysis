@@ -1,164 +1,93 @@
+import excel using "../dataRaw/World Bank Region Classifications.xlsx", clear sheet("List of economies") cellrange(D5:F224) firstrow
+drop if _n==1
+drop X
+ren Code iso3
+ren Region WBregion
+save "../temp/World Bank Region Classifications", replace
 
+local com Maize 
+use "../dataAnalysis/yield_convergence_data_`com'", clear
 
-foreach com in Maize Wheat Rice {
-*local com Wheat
-* Define which variable to use to measure potential yield
-if "`com'"=="Maize" | "`com'"=="Wheat"  {
-local potential_yield potent_rain_int
-}
-if "`com'"=="Rice" {
-local potential_yield post1500AverageCaloriesmean
-}
-* Create dataset of smoothed NRA values
-use "../temp/revisedMatthieu_regression_data", clear
-keep if commodity=="`com'"
-ren dai3__nra nra
-drop if nra==.
-capture drop country_grp
-egen country_grp=group(country), label
-xtset country_grp year
-gen nra_hat=.
-
-summ country_grp
-local max_country=r(max)
-forvalues j=1/`max_country' {
-
-capture drop year_spline*
-mkspline year_spline=year, cubic nknots(5)
-
-qui reg nra year_spline* if country_grp==`j'
-qui predict yhat if country_grp==`j'
-qui replace nra_hat=yhat if country_grp==`j'
-drop yhat 
-}
-keep country commodity year nra_hat
-save "../temp/nra_hat_`com'", replace
-
-use "..\temp\yield_pred_`com'", clear
-gen commodity="`com'"
-merge m:1 year using "../temp/yield_percentiles_`com'", keep(match master) nogen
-
-* Polity data
-merge 1:1 iso3 year using "..\temp\p4v2016", keep(match master) nogen
-* Smoothed NRA
-merge 1:1 country commodity year using "../temp/nra_hat_`com'", keep(match master) nogen
-* Merge the rest of the NRA data
-merge 1:1 country commodity year using "../temp/revisedMatthieu_regression_data", keep(match master) nogen
-merge 1:1 country year using "../temp/Cntry_Year_data", keep(match master) nogen
-* Penn World table
-merge 1:1 iso3 year using "../temp/pwt90_iso3", keep(match master) nogen
-* Agriculture R&D Expenditures
-merge 1:1 countrycode year using "../temp/rd25lag", keep(match master) nogen
-gen lnrd25lag=ln(rd25lag)
-* Caloric data from GAEZ obtained from here: https://ozak.github.io/Caloric-Suitability-Index/
-* Should cite Oded Galor and Ömer Özak, 2016. “The Agricultural Origins of Time Preference,” American Economic Review, 2016, 106(10): 3064–3103.
-merge m:1 iso3 using "../temp/country_Calories_potential", keep(match master) nogen
-
-* GAEZ yield potential and yield gap data
-* This dataset was only available for Maize and Wheat
-if "`com'"=="Maize" | "`com'"=="Wheat"  {
-merge m:1 iso3 using "../temp/`com'_yield_potential", keep(match master) nogen
-}
-
-merge m:1 iso3 using "../temp/ygapGAEZ_`com'", keep(match master) nogen
+merge m:1 iso3 using "../temp/World Bank Region Classifications", keep(match master)
 
 
 
-* Polity dummy variables
-gen polity_democ=(polity2>0) if polity2!=.
-gen polity_vlow=(polity2<=-5) if polity2!=.
-gen polity_low=(polity2>-5 & polity2<=0) if polity2!=.
-gen polity_high=(polity2>0 & polity2<=5) if polity2!=.
-gen polity_vhigh=(polity2>5) if polity2!=.
-gen democ01=(democ>0) if democ!=. & democ!=-88 & democ!=-77 & democ!=-66
-gen autoc01=(autoc>0) if autoc!=. & autoc!=-88 & autoc!=-77 & autoc!=-66
-
-ren cru__ave3_pre_w_finarea pre
-ren cru__ave3_tmn_w_finarea temp_min
-ren cru__ave3_tmp_w_finarea temp_avg
-ren cru__ave3_tmx_w_finarea temp_max
-ren cru__ave3_vap_w_finarea vap
-ren cru__ave3_pet_w_finarea pet
-corr vap pet temp_max
-
-* Use GDP per capita from Penn World Table
-gen gdp_per_capita= rgdpna/pop
-gen ln_gdp_per_capita=ln(gdp_per_capita)
-
-
-gen antiAg=(nra_hat <0) if nra_hat!=.
-*bysort country: egen sum_antiAg=total(antiAg)
-*tab sum_antiAg
-*replace antiAg=0 if sum_antiAg<10
-gen proAg=(nra_hat >0) if nra_hat!=.
-*bysort country: egen sum_proAg=total(proAg)
-*tab sum_proAg
-*replace proAg=0 if sum_proAg<10
-summ antiAg proAg
-
-
-
-gen yield_gap=yield_hat/yield90
-
-gen ln_yield=ln(yield_hat)
-gen ln_yield_pot=ln(`potential_yield')
+gen myregion=.
+replace myregion=1 if WBregion=="Sub-Saharan Africa"
+replace myregion=2 if WBregion=="Latin America & Caribbean"
+replace myregion=3 if WBregion=="East Asia & Pacific" | WBregion=="South Asia"
+replace myregion=4 if WBregion=="Europe & Central Asia" | region=="North America" 
 
 sort country_grp year
-*gen yield_growth1=d.ln_yield
-gen lln_yield=l.ln_yield
-gen yield_growth1=ln(yield_hat/l.yield_hat)
-gen yield_growth20=ln(yield_hat/l20.yield_hat)/20
-gen yield_growth30=ln(yield_hat/l30.yield_hat)/30
-gen yield_growth29=ln(yield_hat/l29.yield_hat)/29
-*gen yield_chg=d.yield_hat
 
-*------------------------------------------------------------------------
-* Drop countries with strange data
-* These are strange for maize
-if "`com'"=="Maize" {
-drop if country=="Democratic People's Republic of Korea"
-drop if country=="Togo"
-}
-* These are strange for rice
-if "`com'"=="Rice" {
-drop if country=="Guinea"
-}
-*--------------------------------------------------------------------------
+twoway (scatter yield_hat_growth29 l29.ln_yield_hat if year==2010 & myregion==1, mlabel(iso3) mlabposition(0) msymbol(none) mlabcolor(blue)) ///
+		(lfit yield_hat_growth29 l29.ln_yield_hat if year==2010 & myregion==1, lcolor(blue)) ///
+		(scatter yield_hat_growth29 l29.ln_yield_hat if year==2010 & myregion==2, mlabel(iso3) mlabposition(0) msymbol(none) mlabcolor(red)) ///
+		(lfit yield_hat_growth29 l29.ln_yield_hat if year==2010 & myregion==2, lcolor(red)) ///
+		(scatter yield_hat_growth29 l29.ln_yield_hat if year==2010 & myregion==3, mlabel(iso3) mlabposition(0) msymbol(none) mlabcolor(green)) ///
+		(lfit yield_hat_growth29 l29.ln_yield_hat if year==2010 & myregion==3, lcolor(green)) ///
+		(scatter yield_hat_growth29 l29.ln_yield_hat if year==2010 & myregion==4, mlabel(iso3) mlabposition(0) msymbol(none) mlabcolor(black)) ///
+		(lfit yield_hat_growth29 l29.ln_yield_hat if year==2010 & myregion==4, lcolor(black)), ///
+ scale(1.25)   ytitle("Yield Growth 1981-2010") xtitle("1981 Log Yield") scheme(538w) 
 
-summ yield_growth*
+ 
+gen income_grp=.
+replace income_grp= 1 if gdp_per_capita<755 & gdp_per_capita!=.
+replace income_grp= 2 if  gdp_per_capita>=755 & gdp_per_capita<9265 & gdp_per_capita!=.
+replace income_grp= 3 if  gdp_per_capita>=9265 & gdp_per_capita!=.
+ 
+twoway (scatter yield_hat_growth29 l29.ln_yield_hat if year==2010 & income_grp==1, mlabel(iso3) mlabposition(0) msymbol(none) mlabcolor(blue)) ///
+		(lfit yield_hat_growth29 l29.ln_yield_hat if year==2010 & income_grp==1, lcolor(blue)) ///
+		(scatter yield_hat_growth29 l29.ln_yield_hat if year==2010 & income_grp==2, mlabel(iso3) mlabposition(0) msymbol(none) mlabcolor(red)) ///
+		(lfit yield_hat_growth29 l29.ln_yield_hat if year==2010 & income_grp==2, lcolor(red)) ///
+		(scatter yield_hat_growth29 l29.ln_yield_hat if year==2010 & income_grp==3, mlabel(iso3) mlabposition(0) msymbol(none) mlabcolor(green)) ///
+		(lfit yield_hat_growth29 l29.ln_yield_hat if year==2010 & income_grp==3, lcolor(green)) , ///
+ scale(1.25)   ytitle("Yield Growth 1981-2010") xtitle("1981 Log Yield") scheme(538w) 
+ 
+ 
+ 
+foreach com in Maize Wheat Rice {
+
+use "../dataAnalysis/yield_convergence_data_`com'", clear
+	
+
+summ yield_hat_growth*
 summ nra polity_democ pre vap pet
+
+
+
 
 *------------------------------------------------------------------------
 * Plots of growth versus initial
 *------------------------------------------------------------------------
-scatter yield_growth29 l29.ln_yield if year==2010, mlabel(iso3) mlabposition(0) msymbol(none) ///
+scatter yield_hat_growth29 l29.ln_yield_hat if year==2010, mlabel(iso3) mlabposition(0) msymbol(none) ///
  scale(1.25)   ytitle("Yield Growth 1981-2010") xtitle("1981 Log Yield") scheme(538w) name(growth_v_init_`com'2010, replace)
 
-scatter yield_growth29 l29.ln_yield if year==1990, mlabel(iso3) mlabposition(0) msymbol(none) ///
+scatter yield_hat_growth29 l29.ln_yield_hat if year==1990, mlabel(iso3) mlabposition(0) msymbol(none) ///
  scale(1.25)   ytitle("Yield Growth 1961-1990") xtitle("1961 Log Yield") scheme(538w) name(growth_v_init_`com'1990, replace)
 *------------------------------------------------------------------------
 * Conditional test for yield convergence
 *------------------------------------------------------------------------
 summ year
-reg yield_growth1 l.ln_yield ln_yield_pot i.year, vce(cluster country_grp)
+reg yield_hat_growth1 l.ln_yield_hat ln_yield_pot i.year, vce(cluster country_grp)
 eststo ols_`com'
-xtreg yield_growth1 l.ln_yield i.year, fe vce(cluster country_grp)
+xtreg yield_hat_growth1 l.ln_yield_hat i.year, fe vce(cluster country_grp)
 eststo fe_`com'
 
-esttab ols_`com' fe_`com', keep( L.ln_yield ln_yield_pot) star(* 0.10 ** 0.05 *** 0.01)
+esttab ols_`com' fe_`com', keep( L.ln_yield_hat ln_yield_pot) star(* 0.10 ** 0.05 *** 0.01)
 
 *------------------------------------------------------------------------
 * Graphs of cross-section estimates over time
 *------------------------------------------------------------------------
-summ year if yield_growth1!=. & l.ln_yield!=.
+summ year if yield_hat_growth1!=. & l.ln_yield_hat!=.
 local min_year=r(min)
 local max_year=r(max)
 tempname memhold
 tempfile conv_results
 postfile `memhold' year beta low high using `conv_results', replace
 forvalues y=`min_year'/`max_year' {
-qui reg yield_growth1 l.ln_yield `potential_yield' if year==`y', vce(cluster country_grp)
-post `memhold' (`y') (_b[L.ln_yield]) (_b[L.ln_yield]-1.645*_se[L.ln_yield]) (_b[L.ln_yield]+1.645*_se[L.ln_yield]) 
+qui reg yield_hat_growth1 l.ln_yield_hat `potential_yield' if year==`y', vce(cluster country_grp)
+post `memhold' (`y') (_b[L.ln_yield_hat]) (_b[L.ln_yield_hat]-1.645*_se[L.ln_yield_hat]) (_b[L.ln_yield_hat]+1.645*_se[L.ln_yield_hat]) 
 }
 postclose `memhold'
 
@@ -180,9 +109,9 @@ graph export "../figures/convergence_coefficient_combined.png", replace	width(20
 graph combine growth_v_init_Maize2010 growth_v_init_Wheat2010 growth_v_init_Rice2010 growth_v_init_Maize1990 growth_v_init_Wheat1990 growth_v_init_Rice1990, cols(3)iscale(1) xsize(15in) ysize(7in) scheme(538w)
 graph export "../figures/growth_v_init_combined.png", replace	width(2000)
 		
-esttab ols_Maize fe_Maize using "../tables/convergence_tests", keep( L.ln_yield ln_yield_pot) b(%9.3f) se(%9.3f) se star(* 0.10 ** 0.05 *** 0.01) mtitles("Maize OLS" "Maize FE") coeflabels(L.ln_yield "Log Yield\$_{t-1}\$" ln_yield_pot "Log Potential Yield") substitute(\_ _)	tex replace	
-esttab ols_Wheat fe_Wheat using "../tables/convergence_tests", keep( L.ln_yield ln_yield_pot) b(%9.3f) se(%9.3f) se star(* 0.10 ** 0.05 *** 0.01) mtitles("Wheat OLS" "Wheat FE") coeflabels(L.ln_yield "Log Yield\$_{t-1}\$" ln_yield_pot "Log Potential Yield") substitute(\_ _)	tex append
-esttab ols_Rice fe_Rice using "../tables/convergence_tests", keep( L.ln_yield ln_yield_pot) b(%9.3f) se(%9.3f) se star(* 0.10 ** 0.05 *** 0.01) mtitles("Rice OLS" "Rice FE") coeflabels(L.ln_yield "Log Yield\$_{t-1}\$" ln_yield_pot "Log Potential Yield") substitute(\_ _)	tex append				
+esttab ols_Maize fe_Maize using "../tables/convergence_tests", keep( L.ln_yield_hat ln_yield_pot) b(%9.3f) se(%9.3f) se star(* 0.10 ** 0.05 *** 0.01) mtitles("Maize OLS" "Maize FE") coeflabels(L.ln_yield_hat "Log Yield\$_{t-1}\$" ln_yield_pot "Log Potential Yield") substitute(\_ _)	tex replace	
+esttab ols_Wheat fe_Wheat using "../tables/convergence_tests", keep( L.ln_yield_hat ln_yield_pot) b(%9.3f) se(%9.3f) se star(* 0.10 ** 0.05 *** 0.01) mtitles("Wheat OLS" "Wheat FE") coeflabels(L.ln_yield_hat "Log Yield\$_{t-1}\$" ln_yield_pot "Log Potential Yield") substitute(\_ _)	tex append
+esttab ols_Rice fe_Rice using "../tables/convergence_tests", keep( L.ln_yield_hat ln_yield_pot) b(%9.3f) se(%9.3f) se star(* 0.10 ** 0.05 *** 0.01) mtitles("Rice OLS" "Rice FE") coeflabels(L.ln_yield_hat "Log Yield\$_{t-1}\$" ln_yield_pot "Log Potential Yield") substitute(\_ _)	tex append				
 		
 		
 		
