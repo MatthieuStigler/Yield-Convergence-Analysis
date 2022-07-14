@@ -5,7 +5,7 @@
 #' runMat: TRUE
 #' ---
 
-library(matPkg)o
+library(matPkg)
 library(tidyverse)
 
 ################################
