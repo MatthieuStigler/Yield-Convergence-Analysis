@@ -9,7 +9,8 @@ library(matPkg)
 library(tidyverse)
 library(RColorBrewer)
 library(patchwork)
-library(tidybayes)
+# library(tidybayes) # stat_eye
+library(ggdist) # stat_eye
 
 source("code_R/888_misc_functions.R")
 
@@ -163,25 +164,43 @@ pl_dens_5
 #'## Violin
 ################################
 
-pl_violin <- yld_smooth_c %>% 
+## Prep yield data: every 10 Y
+yld_sm_10Y <- yld_smooth_c %>% 
   mutate(yield_hat_log=log(yield_hat),
          type=year %in% c(1965, 1985, 2005)) %>% 
   prj_clean_crop_names %>% 
-  filter(year %in% seq(1965, 2015, by=10)) %>%
+  filter(year %in% seq(1965, 2015, by=10))
+
+## Violin vertical
+pl_violin <-yld_sm_10Y  %>%
   ggplot(aes(x=factor(year), y=yield_hat_log))+
-  stat_eye(side = "left", interval_function=NULL, point_interval=NULL,
+  stat_eye(side = "left", point_interval="median_qi",
            slab_colour="black", slab_size=.5)+
-  # geom_violin(draw_quantiles = c(0.1, 0.5, 0.9))  +
-  # geom_line(aes(y=q_value, color=q_name, group=q_name), data=dat_quant_only %>%
-  # prj_clean_crop_names)+
   facet_wrap(crop~., scales = "fixed", nrow=1) +
   xlab("Year")+ylab("Log yield")+
-  labs(color="Year", linetype="Year") +
-  scale_color_viridis_d()+
-  # scale_color_manual(values = brewer.pal(7, "YlGnBu")[-1])+
-  theme_bw() 
+  theme_bw() +
+  ggtitle("Density, with median and inter-quartile range")
 
-pl_violin
+pl_violin 
+
+## inverse axis
+pl_violin_horiz <-yld_sm_10Y  %>%
+  ggplot(aes(x=yield_hat_log, y=factor(year)))+
+  stat_eye(side = "right", point_interval = "median_qi",
+           slab_colour="black", slab_size=.5,
+           orientation= "horizontal", adjust=1)+
+  facet_wrap(crop~., scales = "fixed", nrow=1) +
+  ylab("Year")+xlab("Log yield")+
+  theme_bw() +
+  ggtitle("Density, with median and inter-quartile range")
+
+pl_violin_horiz
+
+## horizontal, years together
+pl_violin_horiz_B <- pl_violin_horiz +
+  facet_wrap(crop~., scales = "fixed", nrow=3)
+  
+pl_violin_horiz_B
 
 ################################
 #'## Patch
@@ -196,7 +215,9 @@ pl_dens_quant <- pl_dens_5 / pl_quant_true
 ggsave_paper(pl_quant_true, "figures/smooth_quantiles_true_byY_rUifsdm.png")
 ggsave_paper(pl_dens_5, "figures/smooth_densities_byCY_rUifsdm.png")
 ggsave_paper(pl_dens_quant, "figures/smooth_densities_quant_rUifsdm.png")
-ggsave_paper(pl_violin, "figures/smooth_densities_byY_rUifsdm.png")
+
+ggsave_paper(pl_violin, "figures/yield_densities/smooth_densities_byY_rUifsdm.png")
+ggsave_paper(pl_violin_horiz, "figures/yield_densities/smooth_densities_byY_horiz_rUifsdm.png")
 
 
 ## save plots  
