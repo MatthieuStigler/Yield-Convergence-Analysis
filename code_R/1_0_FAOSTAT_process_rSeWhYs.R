@@ -126,6 +126,9 @@ FAO_keep_c %>%
   filter(is.na(Value)) %>% 
   count(Value, Flag)
 
+## Units?
+FAO_keep_c %>% 
+  count(Element, Unit)
 
 ## Final
 FAO_keep_quasi_final <- FAO_keep_c %>% 

@@ -10,6 +10,7 @@ library(broom)
 library(lfe)
 library(matPkg)
 library(texreg)
+library(magrittr)
 library(plm)
 library(haven)
 
@@ -25,6 +26,7 @@ y_W <- read_csv("dataAnalysis/yield_convergence_data_Wheat.csv")
 readxl::read_xlsx("dataRaw/World Bank Region Classifications.xlsx", skip=3)
 
 FAO_2020 <- read_csv("data_intermediary/FAOSTAT_3crops_2020_rSeWhYs.csv")
+yld_smooth_FAO2020 <- read_rds("data_intermediary/FAOSTAT_3crops_2020_Yonly_smoothed_rSwApAm.rds") # from 1_2
 
 yld_smooth <- read_csv("temp/yield_pred_3crops.csv")
 yld_pot <- read_dta("data_intermediary/yld_potential_rJcYdFg.dta")
@@ -118,23 +120,26 @@ mat_pdf_to_png("tables/convergence_many_models_rGwQmPo.pdf", correct_grayscale =
 #'## Run with other dataset
 ################################
 
-FAO_2020_prep <- FAO_2020 %>% 
-  filter(is_in_old) %>% 
-  filter(element=="yield") %>% 
-  rename(yield = value) %>% 
-  select(-is_in_old, -element) %>% 
+FAO_2020_prep <- yld_smooth_FAO2020 %>% 
+  rename(yield_hat = trend) %>% 
+  filter(pred=="smooth_full") %>% 
+  select(-deviation, -pred) %>% 
+  # spread(pred, trend)
   mutate(crop = str_to_title(crop)) %>% 
   left_join(yld_pot, by = c("countrycode", "iso3", "crop", "country"))
 
+FAO_2020_prep
+
 FAO_2020_prep %>% filter(year<=2016)
 
+## prep alter
 yld_smooth_prep <- yld_smooth %>% 
   mutate(crop = str_to_title(crop)) %>% 
   left_join(yld_pot %>% 
               select(-country), by = c("countrycode", "iso3", "crop")) %>% 
   select(all_of(colnames(FAO_2020_prep)), yield_hat)
 
-## compare
+## compare: just a few distinct values
 yld_smooth_prep %>% 
   full_join(FAO_2020_prep %>% 
               filter(year<=2016), by = c("countrycode", "iso3", "crop", "year", "country"),
@@ -154,9 +159,17 @@ FAO_2020_prep %>%
 #   rename(yield=yield_hat)
 data_here <-FAO_2020_prep
 
+## long over raw vs hat
+data_here_l <- data_here %>%
+  rename(yield_raw=yield) %>% 
+  gather(yield_type, yield, yield_raw, yield_hat)
 
-FAO_2020_prep_2 <- data_here%>% 
-  group_by(countrycode, crop) %>% 
+data_here_l
+
+## add leags, etc
+FAO_2020_prep_2 <- data_here_l%>% 
+  group_by(countrycode, crop, yield_type) %>% 
+  arrange(year) %>% 
   mutate(ln_yield = log(yield),
          ln_yield_lag= dplyr::lag(ln_yield, order_by = year),
          ln_yield_diff = ln_yield-ln_yield_lag) %>% 
@@ -171,7 +184,9 @@ FAO_2020_prep_2
 ## nest
 FAO_2020_nst <- FAO_2020_prep_2 %>% 
   filter(year<=2016) %>%
-  nest(data = -crop)
+  nest(data = -c(crop, yield_type))
+
+FAO_2020_nst
 
 ### run regs
 regs_all_2000 <- FAO_2020_nst %>% 
@@ -188,13 +203,16 @@ regs_all_2000 <- FAO_2020_nst %>%
          reg_type = fct_relevel(reg_type, c("reg_FE0", "reg_FE1", "reg_FE1_noYP"))) %>% 
   arrange(crop, reg_type)
 
+regs_all_2000
 
 
-screenreg(regs_all_2000$reg, custom.model.names = regs_all_2000$mod_name,
-          custom.coef.map = list(l.ln_yield_hat=NA, ln_yield_pot=NA), digits=3,
-          include.rsquared = FALSE,
-          include.adjrs = FALSE,
-          stars = c(0.01, 0.05, 0.1))
+regs_all_2000 %>% 
+  filter(yield_type=="yield_raw")%$%
+  screenreg(reg, custom.model.names = mod_name,
+            custom.coef.map = list(l.ln_yield_hat=NA, ln_yield_pot=NA), digits=3,
+            include.rsquared = FALSE,
+            include.adjrs = FALSE,
+            stars = c(0.01, 0.05, 0.1))
 
 
 texreg(regs_all_2000$reg, custom.model.names = regs_all_2000$mod_name,
@@ -214,6 +232,14 @@ mat_pdf_to_png("tables/convergence_many_models_raw_rGwQmPo.pdf", correct_graysca
 ################################
 #'## Visu
 ################################
+
+regs_all_2000 %>% 
+  select(-reg) %>% 
+  unnest(coef) %>% 
+  mat_tidy_clean() %>% 
+  filter(term =="l.ln_yield_hat") %>% 
+  mutate(yield_type = fct_relevel(yield_type, "yield_raw")) %>% 
+  mat_plot_coefs_tidy(fill_var=reg_type, fac2_var=crop, fac1_var=yield_type,scales="free_y")
 
 ################################
 #'## Export data

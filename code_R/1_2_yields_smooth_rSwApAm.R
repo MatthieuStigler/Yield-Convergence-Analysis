@@ -50,13 +50,13 @@ if(FALSE){
   X_t <- (1:N)-N/2
   y <-  5 + - 0.1*X_t^2 + rnorm(N, sd = 10)
   data <- tibble(year = X_t, yield = y)
-  ggplot(data, aes(x=year, y=yield))+
-    geom_line()
+  
+  # plot
   data %>% 
     do_spline() %>% 
-    ggplot(aes(x = year, y = deviation))+
+    ggplot(aes(x = year, y = trend))+
     geom_line()+
-    geom_line(aes(y=trend))
+    geom_point(aes(y=yield), col = "blue")
 }
 
 
@@ -82,25 +82,26 @@ splines_out_df_l
 #'## Visu
 ################################
 
-splines_out_df %>% 
+pl_yld_smooth_wheat <- splines_out_df %>% 
   filter(crop=="wheat") %>% 
-  # filter(stat!="deviation") %>% 
   filter(pred =="smooth_2016") %>% 
-  # filter(countrycode<30) %>% 
-  mat_head_group(countrycode, n_head = 16) %>% 
+  mat_head_group(countrycode, n_head = 16) %>%
   ggplot(aes(x = year, y=trend))+
-  geom_line(color ="blue")+
-  geom_point(aes(y=yield))+
-  facet_wrap(~country, scales = "free_y")
-  # theme(legend.position = "none")
+  geom_line(color ="blue", lwd=1.2)+
+  geom_point(aes(y=yield), size =0.2)+
+  facet_wrap(~country, scales = "free_y")+
+  xlab("Year")+ylab("Yield")
+
+pl_yld_smooth_wheat
 
 ################################
 #'## Export data
 ################################
 
-#write_rds(..., "data_intermediary/")
+write_rds(splines_out_df, "data_intermediary/FAOSTAT_3crops_2020_Yonly_smoothed_rSwApAm.rds")
+## READ AS: yld_smooth_FAO2020 <- read_rds("data_intermediary/FAOSTAT_3crops_2020_Yonly_smoothed_rSwApAm.rds") # from 1_2
 
 ## save plots  
-# ggsave(..., height = gg_height, width = gg_width,
-#        filename = "output/figures/xxx")
+ggsave(pl_yld_smooth_wheat, height = gg_height, width = gg_width,
+       filename = "output/figures/xxx")
 # rSwApAm
