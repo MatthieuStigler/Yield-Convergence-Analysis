@@ -38,7 +38,7 @@ unique(FAO_2020_Y_nst$n_obs)
 
 do_spline <- function(data, df = 6) {
   # t <- seq_along(x)
-  reg <- lm(yield ~  ns(year, df=df), data=data)
+  reg <- lm(yield ~  splines::ns(year, df=df), data=data)
   data %>% 
     select(year, yield) %>% 
     mutate(deviation = residuals(reg), 

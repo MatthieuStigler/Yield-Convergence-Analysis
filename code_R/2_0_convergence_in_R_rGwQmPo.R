@@ -7,12 +7,16 @@
 
 library(multiDiff) # devtools::install_github("MatthieuStigler/multiDiff")
 library(broom)
-library(lfe)
 library(matPkg)
 library(texreg)
 library(magrittr)
-library(plm)
 library(haven)
+library(lfe)
+if(packageVersion("fixest")<="0.10.4"){
+  devtools::install_github("lrberge/fixest")
+}
+library(fixest)
+library(tidyverse)
 
 ################################
 #'## Read data
@@ -135,6 +139,7 @@ FAO_2020_prep %>% filter(year<=2016)
 ## prep alter
 yld_smooth_prep <- yld_smooth %>% 
   mutate(crop = str_to_title(crop)) %>% 
+  add_count(country, crop, name = "n_obs") %>% 
   left_join(yld_pot %>% 
               select(-country), by = c("countrycode", "iso3", "crop")) %>% 
   select(all_of(colnames(FAO_2020_prep)), yield_hat)
@@ -166,7 +171,7 @@ data_here_l <- data_here %>%
 
 data_here_l
 
-## add leags, etc
+## add lags, etc
 FAO_2020_prep_2 <- data_here_l%>% 
   group_by(countrycode, crop, yield_type) %>% 
   arrange(year) %>% 
@@ -177,7 +182,9 @@ FAO_2020_prep_2 <- data_here_l%>%
   mutate(yield_hat_growth1 = ln_yield_diff,
          l.ln_yield_hat= ln_yield_lag,
          ln_yield_pot = log(yield_pot),
-         country_grp = country)
+         country_grp = country,
+         year_sq = year^2) %>% 
+  filter(year!=1961) # lost because of diff
 
 FAO_2020_prep_2
 
@@ -191,22 +198,26 @@ FAO_2020_nst
 ### run regs
 regs_all_2000 <- FAO_2020_nst %>% 
   mutate(reg_FE0 = map(data, ~felm(yield_hat_growth1 ~l.ln_yield_hat+ln_yield_pot|0|0|country_grp, data = .)),
-         reg_FE1 = map(data, ~felm(yield_hat_growth1 ~l.ln_yield_hat+ln_yield_pot|year|0|country_grp, data = .)),
-         reg_FE1_noYP = map(data, ~felm(yield_hat_growth1 ~l.ln_yield_hat|year|0|country_grp, data = .)),
-         reg_FE2 = map(data, ~felm(yield_hat_growth1 ~l.ln_yield_hat|year+country|0|country_grp, data = .))
+         reg_FE1_t = map(data, ~felm(yield_hat_growth1 ~l.ln_yield_hat+ln_yield_pot|year|0|country_grp, data = .)),
+         reg_FE1_i = map(data, ~felm(yield_hat_growth1 ~l.ln_yield_hat|country|0|country_grp, data = .)),
+         reg_FE1_t_noYP = map(data, ~felm(yield_hat_growth1 ~l.ln_yield_hat|year|0|country_grp, data = .)),
+         reg_FE2 = map(data, ~felm(yield_hat_growth1 ~l.ln_yield_hat|year+country|0|country_grp, data = .)),
+         reg_FE2_t = map(data, ~feols(yield_hat_growth1 ~l.ln_yield_hat|country[year]+country, data = ., vcov = ~country)),
+         reg_FE2_t2 = map(data, ~feols(yield_hat_growth1 ~l.ln_yield_hat|country[year]+country[year_sq]+country, data = ., vcov = ~country))
          # reg_FE_AB = map(data, ~pgmm(ln_yield_hat ~lag(ln_yield_hat)|lag(ln_yield_hat,2:4), index = c("country", "year"), data = .))
   ) %>% 
   select(-data) %>% 
   gather(reg_type, reg, starts_with("reg")) %>% 
   mutate(coef = map(reg, broom::tidy, conf.int=TRUE),
          mod_name = paste(crop, str_remove_all(reg_type, "reg_")) ,
-         reg_type = fct_relevel(reg_type, c("reg_FE0", "reg_FE1", "reg_FE1_noYP"))) %>% 
+         reg_type = fct_relevel(reg_type, c("reg_FE0", "reg_FE1_t", "reg_FE1_t_noYP", "reg_FE1_i"))) %>% 
   arrange(crop, reg_type)
 
 regs_all_2000
 
-
+## screenreg
 regs_all_2000 %>% 
+  filter(!str_detect(reg_type, "_t")) %>% 
   filter(yield_type=="yield_raw")%$%
   screenreg(reg, custom.model.names = mod_name,
             custom.coef.map = list(l.ln_yield_hat=NA, ln_yield_pot=NA), digits=3,
@@ -214,16 +225,19 @@ regs_all_2000 %>%
             include.adjrs = FALSE,
             stars = c(0.01, 0.05, 0.1))
 
-
-texreg(regs_all_2000$reg, custom.model.names = regs_all_2000$mod_name,
-       custom.coef.map = list(l.ln_yield_hat=NA, ln_yield_pot=NA), digits=3,
-       include.rsquared = FALSE,
-       include.adjrs = FALSE,
-       stars = c(0.01, 0.05, 0.1),
-       caption = "Raw yields (new FAO update, yet  before 2016)",
-       caption.above = TRUE,
-       file = "tables/convergence_many_models_raw_rGwQmPo.tex",
-       booktabs = TRUE, use.packages =FALSE)
+## Texreg
+regs_all_2000 %>% 
+  filter(!str_detect(reg_type, "_t")) %>% 
+  filter(yield_type=="yield_raw")%$%
+  texreg(reg, custom.model.names = mod_name,
+         custom.coef.map = list(l.ln_yield_hat=NA, ln_yield_pot=NA), digits=3,
+         include.rsquared = FALSE,
+         include.adjrs = FALSE,
+         stars = c(0.01, 0.05, 0.1),
+         caption = "Raw yields (new FAO update, yet  before 2016)",
+         caption.above = TRUE,
+         file = "tables/convergence_many_models_raw_rGwQmPo.tex",
+         booktabs = TRUE, use.packages =FALSE)
 
 mat_table_to_pdf(x="tables/convergence_many_models_raw_rGwQmPo.tex", is_path_x = TRUE)
 mat_pdf_to_png("tables/convergence_many_models_raw_rGwQmPo.pdf", correct_grayscale = TRUE)
@@ -233,13 +247,18 @@ mat_pdf_to_png("tables/convergence_many_models_raw_rGwQmPo.pdf", correct_graysca
 #'## Visu
 ################################
 
-regs_all_2000 %>% 
+pl_beta_coefs <- regs_all_2000 %>% 
   select(-reg) %>% 
   unnest(coef) %>% 
   mat_tidy_clean() %>% 
   filter(term =="l.ln_yield_hat") %>% 
   mutate(yield_type = fct_relevel(yield_type, "yield_raw")) %>% 
-  mat_plot_coefs_tidy(fill_var=reg_type, fac2_var=crop, fac1_var=yield_type,scales="free_y")
+  mat_plot_coefs_tidy(fill_var=reg_type, fac2_var=crop, fac1_var=yield_type,scales="free_y")+
+  xlab(NULL)+
+  ggtitle("Beta coef with different FEs/trend")+
+  labs(subtitle =  "FE1 is year FE, *_t and _t^2 is country linear/cubic trend")
+
+pl_beta_coefs
 
 ################################
 #'## Export data
@@ -248,6 +267,7 @@ regs_all_2000 %>%
 #write_rds(..., "data_intermediary/")
 
 ## save plots  
-# ggsave(..., height = gg_height, width = gg_width,
-#        filename = "output/figures/xxx")
+ggsave(pl_beta_coefs, width=8 ,height = 5,
+       filename = "figures/beta_convergence/beta_many_FE_raw_smooth_rWdApQi.png")
+
 # rGwQmPo
