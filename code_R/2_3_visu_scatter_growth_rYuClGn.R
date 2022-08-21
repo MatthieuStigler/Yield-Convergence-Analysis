@@ -26,6 +26,8 @@ FAO_codes <- read_csv("dataRaw/FAOSTAT_countrycodes.csv")
 
 yld_pot <- read_dta("data_intermediary/yld_potential_rJcYdFg.dta")
 
+ylds_final <- read_csv("dataAnalysis/Ylds_raw_hat_pot_2016_rWsDaQp.rds")
+
 ################################
 #'## Prepare data
 ################################
@@ -50,11 +52,12 @@ yld_smooth_c %>%
   filter(iso3!= iso3_check) %>% 
   mat_check_0row()
 
-
+ylds_final
+ylds_here <- yld_smooth_c
 
 
 ## prep
-yld_smooth_prep <- yld_smooth_c %>% 
+yld_smooth_prep <- ylds_here %>% 
   mutate(yield_log=log(yield_hat)) %>% 
   arrange(crop, iso3, year) %>% 
   group_by(crop, iso3) %>% 
@@ -121,7 +124,7 @@ regs_df
 regs_li <- regs_df$reg
 names(regs_li) <- paste(regs_df$crop, regs_df$period)
 stargazer::stargazer(regs_li, column.labels=names(regs_li),
-                     out = "tables/cross_section_initial.tex")
+                     out = "tables/cross_section_initial.tex", header=FALSE)
   
 
 coefs_df <- regs_df %>% 
@@ -183,7 +186,7 @@ regs_li_all <- regs_all$reg
 
 stargazer::stargazer(regs_li_all, omit.stat=c("f", "ser"), 
                      column.labels=regs_all$name, report=('vc*p'),
-                     out = "tables/cross_section_initial_yp.tex")
+                     out = "tables/cross_section_initial_yp.tex", header=FALSE)
 
 
 ################################
