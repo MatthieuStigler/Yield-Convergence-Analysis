@@ -5,14 +5,16 @@
 #' runMat: TRUE
 #' ---
 
-remotes::install_github("rensa/ggflags")
-devtools::install_github("slowkow/ggrepel")
+
+# devtools::install_github("slowkow/ggrepel")
 
 library(matPkg)
 library(ggrepel)
 library(haven)
 library(patchwork)
-library(ggflags)
+if(!require(ggflags)){
+  remotes::install_github("rensa/ggflags")
+}
 source("code_R/888_misc_functions.R")
 
 ################################
@@ -118,7 +120,8 @@ regs_df
 ## Table
 regs_li <- regs_df$reg
 names(regs_li) <- paste(regs_df$crop, regs_df$period)
-tab_tex <- stargazer::stargazer(regs_li, column.labels=names(regs_li))
+stargazer::stargazer(regs_li, column.labels=names(regs_li),
+                     out = "tables/cross_section_initial.tex")
   
 
 coefs_df <- regs_df %>% 
@@ -177,8 +180,10 @@ regs_all <- bind_rows(regs_df, regs_yp_df) %>%
   arrange(crop, period) %>% 
   mutate(name= paste(crop, period))
 regs_li_all <- regs_all$reg
-tab_all_tex <- stargazer::stargazer(regs_li_all, omit.stat=c("f", "ser"), 
-                                    column.labels=regs_all$name, report=('vc*p'))
+
+stargazer::stargazer(regs_li_all, omit.stat=c("f", "ser"), 
+                     column.labels=regs_all$name, report=('vc*p'),
+                     out = "tables/cross_section_initial_yp.tex")
 
 
 ################################
@@ -357,8 +362,6 @@ ggsave_paper(pl_point_only_stats_smooth_combo, "figures/scatter_convergence_init
 ggsave_paper(pl_point_only_stats_smooth_combo_yp, "figures/scatter_convergence_initial/scatter_growth_points_only_regLine_yp_stats_rYuClGn.png")
 
 
-mat_table_to_pdf(tab_tex, filename = "tables/cross_section_initial.pdf",
-                 is_path_x = FALSE)
-mat_table_to_pdf(tab_all_tex, filename = "tables/cross_section_initial_yp.pdf",
-                 is_path_x = FALSE)
+mat_table_to_pdf(x = "tables/cross_section_initial.tex", is_path_x = TRUE)
+mat_table_to_pdf(x = "tables/cross_section_initial_yp.tex", is_path_x = TRUE)
 
