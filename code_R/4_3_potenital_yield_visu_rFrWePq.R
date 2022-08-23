@@ -8,6 +8,7 @@
 library(haven)
 library(tidyverse)
 library(multimode)
+library(diptest)
 library(matPkg)
 
 ################################
@@ -32,7 +33,7 @@ dip.test_tidy <- function(x, B=500) {
   # methods <- c("HH", "CH", "FM") ## FM very slow!
   # methods <- c("HH", "CH")
   l <- lapply(methods,  \(m) multimode::modetest(x, B=B, method = m))
-  out <- dip.test(x)
+  out <- diptest::dip.test(x)
   
   ## arrange
   map_dfr(l, ~tibble(method = .$method, statistic =.$statistic, p.value = .$p.value )) %>% 

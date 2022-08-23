@@ -66,7 +66,7 @@ yld_smooth_c %>%
   mat_check_0row()
 
 yld_smooth_c2 <- yld_smooth_c %>% 
-  select(-iso3_check, -iso2) %>% 
+  select(-iso3_check) %>% 
   relocate(iso3, .after = country)
 
 yld_smooth_c2

@@ -21,43 +21,17 @@ source("code_R/888_misc_functions.R")
 #'## Read data
 ################################
 
-yld_smooth <- read_csv("temp/yield_pred_3crops.csv")
-FAO_codes <- read_csv("dataRaw/FAOSTAT_countrycodes.csv") 
+ylds_final <- read_csv("dataAnalysis/Ylds_raw_hat_pot_2016_rWsDaQp.rds")
 
 yld_pot <- read_dta("data_intermediary/yld_potential_rJcYdFg.dta")
-
-ylds_final <- read_csv("dataAnalysis/Ylds_raw_hat_pot_2016_rWsDaQp.rds")
 
 ################################
 #'## Prepare data
 ################################
 
-# clean codes
-FAO_codes_c <- FAO_codes %>% 
-  rename_all(~str_replace_all(., " ", "_"))%>% 
-  rename(iso2=`ISO2_Code`,
-         iso3_check=`ISO3_Code`,
-         countrycode=Country_Code) %>%  
-  mutate(iso2=str_to_lower(iso2))
 
-## clean ylds
-yld_smooth_c <- yld_smooth %>% 
-  select(-production, -country_grp, -prop_global_area,
-         -area_hat, -area) %>% 
-  prj_clean_crop_names() %>% 
-  left_join(FAO_codes_c %>% 
-              select(countrycode, starts_with("iso")), by = "countrycode")
-
-yld_smooth_c %>%  
-  filter(iso3!= iso3_check) %>% 
-  mat_check_0row()
-
-ylds_final
-ylds_here <- yld_smooth_c
-
-
-## prep
-yld_smooth_prep <- ylds_here %>% 
+## prep: add logs and lags
+yld_smooth_prep <- ylds_final %>% 
   mutate(yield_log=log(yield_hat)) %>% 
   arrange(crop, iso3, year) %>% 
   group_by(crop, iso3) %>% 
@@ -105,6 +79,7 @@ yld_smooth_sub12 <- yld_smooth_sub1 %>%
   mutate(period= "1961-1980") %>% 
   rbind(yld_smooth_sub2 %>%  
           mutate(period= "1981-2010"))
+
 
 ################################
 #'## Regressions
